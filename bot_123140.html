@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Arbitrajes CriptoYa</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }
+        h1 { text-align: center; color: #333; }
+        p { text-align: center; color: #666; }
+        .crypto-section { 
+            background-color: white; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            padding: 20px; 
+            margin-bottom: 30px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+        }
+        .crypto-section h2 { color: #007bff; }
+        .crypto-section h3 { color: #555; margin-top: 20px; }
+        .best-opportunity { background-color: #e9ffe9; padding: 10px; border-radius: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        #arbitrages { max-width: 1200px; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <h1>Oportunidades de Arbitraje en Criptos/ARS (P2P y Spot)</h1>
+    <p>Actualizando cada 15 segundos... Incluye BTC, DAI, ETH, USDC, USDT contra ARS.<br>Los cálculos usan totalAsk y totalBid, que incluyen comisiones de cada exchange según la API de CriptoYa.</p>
+    <div id="arbitrages"></div>
+
+    <script>
+        const cryptos = ['btc', 'dai', 'eth', 'usdc', 'usdt'];
+
+        async function fetchData() {
+            try {
+                const fetches = cryptos.map(crypto => fetch(`https://criptoya.com/api/${crypto}/ars`).then(res => res.json()).then(data => ({ crypto, data })));
+                const results = await Promise.all(fetches);
+
+                let html = '';
+                for (const { crypto, data } of results) {
+                    const buys = [];
+                    const sells = [];
+                    for (const exchange in data) {
+                        const info = data[exchange];
+                        if (info.totalAsk) {
+                            buys.push({ exchange, price: parseFloat(info.totalAsk), type: determineType(exchange), basePrice: parseFloat(info.ask || info.totalAsk), fee: calculateFee(info.ask, info.totalAsk, 'buy') });
+                        }
+                        if (info.totalBid) {
+                            sells.push({ exchange, price: parseFloat(info.totalBid), type: determineType(exchange), basePrice: parseFloat(info.bid || info.totalBid), fee: calculateFee(info.bid, info.totalBid, 'sell') });
+                        }
+                    }
+
+                    buys.sort((a, b) => a.price - b.price);
+                    sells.sort((a, b) => b.price - a.price);
+
+                    html += `<div class="crypto-section"><h2>${crypto.toUpperCase()}/ARS</h2>`;
+
+                    html += '<h3>Mejor Oportunidad General</h3>';
+                    if (buys.length > 0 && sells.length > 0) {
+                        const bestBuy = buys[0];
+                        const bestSell = sells[0];
+                        const profit = ((bestSell.price - bestBuy.price) / bestBuy.price) * 100;
+                        if (profit > 0) {
+                            html += `<div class="best-opportunity">
+                                <p>Compra en ${bestBuy.exchange} (${bestBuy.type}) a ${bestBuy.price.toFixed(2)} ARS (Precio base: ${bestBuy.basePrice.toFixed(2)}, Comisión: ${bestBuy.fee}%)</p>
+                                <p>Vende en ${bestSell.exchange} (${bestSell.type}) a ${bestSell.price.toFixed(2)} ARS (Precio base: ${bestSell.basePrice.toFixed(2)}, Comisión: ${bestSell.fee}%)</p>
+                                <p>Ganancia potencial: ${profit.toFixed(2)}% (incluyendo comisiones)</p>
+                            </div>`;
+                        } else {
+                            html += '<p>No hay oportunidades de arbitraje positivas en este momento.</p>';
+                        }
+                    }
+
+                    html += '<h3>Top 5 Combinaciones Positivas</h3>';
+                    html += '<table><thead><tr><th>Compra Exchange (Tipo)</th><th>Precio Compra (ARS)</th><th>Comisión (%)</th><th>Venta Exchange (Tipo)</th><th>Precio Venta (ARS)</th><th>Comisión (%)</th><th>Ganancia (%)</th></tr></thead><tbody>';
+                    let count = 0;
+                    for (const buy of buys) {
+                        for (const sell of sells) {
+                            if (buy.exchange !== sell.exchange) {
+                                const profit = ((sell.price - buy.price) / buy.price) * 100;
+                                if (profit > 0 && count < 5) {
+                                    html += `<tr>
+                                        <td>${buy.exchange} (${buy.type})</td>
+                                        <td>${buy.price.toFixed(2)}</td>
+                                        <td>${buy.fee}</td>
+                                        <td>${sell.exchange} (${sell.type})</td>
+                                        <td>${sell.price.toFixed(2)}</td>
+                                        <td>${sell.fee}</td>
+                                        <td>${profit.toFixed(2)}</td>
+                                    </tr>`;
+                                    count++;
+                                }
+                            }
+                        }
+                        if (count >= 5) break;
+                    }
+                    if (count === 0) {
+                        html += '<tr><td colspan="7">No hay combinaciones positivas actualmente.</td></tr>';
+                    }
+                    html += '</tbody></table></div>';
+                }
+
+                document.getElementById('arbitrages').innerHTML = html;
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.getElementById('arbitrages').innerHTML = '<p>Error al cargar los datos. Intenta más tarde.</p>';
+            }
+        }
+
+        function determineType(exchange) {
+            const p2pExchanges = ['binancep2p', 'okexp2p', 'paxfulp2p', 'huobip2p', 'bybitp2p', 'kucoinp2p', 'bitgetp2p', 'bingxp2p', 'lemoncashp2p', 'coinexp2p', 'mexcp2p']; // Actualizado basado en nombres
+            return p2pExchanges.includes(exchange.toLowerCase()) ? 'P2P' : 'Spot';
+        }
+
+        function calculateFee(base, total, type) {
+            if (base && total && base !== total) {
+                if (type === 'buy') {
+                    return (((total - base) / base) * 100).toFixed(2);
+                } else { // sell
+                    return (((base - total) / base) * 100).toFixed(2);
+                }
+            }
+            return '0.00';
+        }
+
+        fetchData();
+        setInterval(fetchData, 15000);
+    </script>
+</body>
+</html>
