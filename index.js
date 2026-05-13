@@ -3,8 +3,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const TELEGRAM_TOKEN = process.env.8995387228:AAEcAXLBykO7KybrnIkDpNSS-eax1wVOEO4;
-const CHAT_ID = process.env.1385846402;
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const CHAT_ID = process.env.CHAT_ID;
 
 const p2pFee = 0.0014;
 const spotFee = 0.0010;
