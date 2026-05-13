@@ -2,9 +2,9 @@ import fetch from 'node-fetch';
 
 const p2pFee = 0.0014;
 const spotFee = 0.0010;
-const UMBRAL_ALERTA = 0.8;
+const UMBRAL_ALERTA = 0.8;   // Bajado para pruebas
 
-const TELEGRAM_TOKEN = '8995387228:AAEcAXLBykO7KybrnIkDpNSS-eax1wVOEO4';
+const TELEGRAM_TOKEN = '995387228:AAEcAXLBykO7KybrnIkDpNSS-eax1wVOEO4';
 const CHAT_ID = '1385846402';
 
 async function obtenerPrecios() {
@@ -25,31 +25,25 @@ async function obtenerPrecios() {
     const bnbData = await bnbRes.json();
 
     const data = {
-      usdtAsk: usdtData.ask || usdtData.price,
-      btcBid: btcData.bid || btcData.price,
-      ethBid: ethData.bid || ethData.price,
-      bnbBid: bnbData.bid || bnbData.price,
-      btcUSDT: parseFloat((await btcSpotRes.json()).price),
-      ethUSDT: parseFloat((await ethSpotRes.json()).price),
-      bnbUSDT: parseFloat((await bnbSpotRes.json()).price)
+      usdtAsk: Number(usdtData.ask || usdtData.price),
+      btcBid: Number(btcData.bid || btcData.price),
+      ethBid: Number(ethData.bid || ethData.price),
+      bnbBid: Number(bnbData.bid || bnbData.price),
+      btcUSDT: Number((await btcSpotRes.json()).price),
+      ethUSDT: Number((await ethSpotRes.json()).price),
+      bnbUSDT: Number((await bnbSpotRes.json()).price)
     };
 
-    console.log(`📊 USDT Ask: ${data.usdtAsk}`);
-    console.log(`📊 BTC Bid: ${data.btcBid} | ETH Bid: ${data.ethBid} | BNB Bid: ${data.bnbBid}`);
+    console.log(`📊 USDT: ${data.usdtAsk.toFixed(2)} | BTC: ${data.btcBid.toLocaleString('es-AR')} | ETH: ${data.ethBid.toLocaleString('es-AR')}`);
 
     return data;
   } catch (e) {
-    console.error("❌ Error obteniendo precios:", e.message);
+    console.error("❌ Error precios:", e.message);
     return null;
   }
 }
 
 function calcularGanancia(monto, usdtAsk, coinBid, coinUSDT, nombre) {
-  if (!usdtAsk || !coinBid || !coinUSDT || isNaN(coinBid) || isNaN(coinUSDT)) {
-    console.log(`⚠️ Datos inválidos para ${nombre}`);
-    return 0;
-  }
-
   const ars = monto * usdtAsk * (1 - p2pFee);
   const coin = ars / coinBid;
   const usdtFinal = coin * coinUSDT * (1 - spotFee);
@@ -77,7 +71,7 @@ async function chequear() {
   if (!data) return;
 
   const monto = 1000;
-  let mensaje = `🚨 <b>OPORTUNIDAD DE ARBITRAJE</b>\n\n`;
+  let mensaje = `🚨 <b>OPORTUNIDAD DE ARBITRAJE P2P</b>\n\n`;
   let hayOportunidad = false;
 
   const monedas = [
@@ -95,13 +89,14 @@ async function chequear() {
   }
 
   if (hayOportunidad) {
-    mensaje += `\n💰 Monto: ${monto} USDT\n📊 USDT ARS: ${data.usdtAsk.toFixed(2)}`;
+    mensaje += `\n💰 Monto ejemplo: ${monto} USDT\n📊 USDT ARS: ${data.usdtAsk.toFixed(2)}`;
     await enviarTelegram(mensaje);
   } else {
-    console.log("⏳ No hay oportunidades por encima del umbral.");
+    console.log("⏳ No hay oportunidades por encima de " + UMBRAL_ALERTA + "%");
   }
 }
 
+// Ejecutar
 setInterval(chequear, 20000);
 chequear();
 
