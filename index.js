@@ -1,104 +1,171 @@
-import fetch from 'node-fetch';
+import axios from "axios";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const TELEGRAM_TOKEN = process.env.8995387228:AAEcAXLBykO7KybrnIkDpNSS-eax1wVOEO4;
+const CHAT_ID = process.env.1385846402;
 
 const p2pFee = 0.0014;
 const spotFee = 0.0010;
-const UMBRAL_ALERTA = 0.6;   // Muy bajo para probar
 
-const TELEGRAM_TOKEN = 'T8995387228:AAEcAXLBykO7KybrnIkDpNSS-eax1wVOEO4';
-const CHAT_ID = '1385846402';
+const MONTO_USDT = 1000;
+const GANANCIA_MINIMA = 1; // %
 
-async function obtenerPrecios() {
+let ultimaAlerta = {
+  BTC: false,
+  ETH: false,
+  BNB: false
+};
+
+async function enviarTelegram(msg) {
   try {
-    const responses = await Promise.all([
-      fetch('https://criptoya.com/api/binancep2p/USDT/ARS/0.0063'),
-      fetch('https://criptoya.com/api/binancep2p/ETH/ARS/0.22'),
-      fetch('https://criptoya.com/api/binancep2p/BNB/ARS/0.75'),
-      fetch('https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT'),
-      fetch('https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT')
+    const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
+
+    await axios.post(url, {
+      chat_id: CHAT_ID,
+      text: msg,
+      parse_mode: "HTML"
+    });
+
+    console.log("Mensaje enviado");
+  } catch (err) {
+    console.error("Error Telegram:", err.message);
+  }
+}
+
+async function obtenerDatos() {
+  try {
+    const [
+      usdtRes,
+      btcRes,
+      ethRes,
+      bnbRes,
+      btcSpotRes,
+      ethSpotRes,
+      bnbSpotRes
+    ] = await Promise.all([
+      axios.get("https://criptoya.com/api/binancep2p/USDT/ARS/0.0063"),
+      axios.get("https://criptoya.com/api/binancep2p/BTC/ARS/0.0063"),
+      axios.get("https://criptoya.com/api/binancep2p/ETH/ARS/0.22"),
+      axios.get("https://criptoya.com/api/binancep2p/BNB/ARS/0.75"),
+
+      axios.get("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"),
+      axios.get("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT"),
+      axios.get("https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT")
     ]);
 
-    const [usdtData, ethP2P, bnbP2P, ethSpotData, bnbSpotData] = await Promise.all(
-      responses.map(r => r.json())
-    );
+    return {
+      usdtAsk: usdtRes.data.ask,
 
-    const data = {
-      usdtAsk: Number(usdtData.ask || usdtData.price),
-      ethBid: Number(ethP2P.bid || ethP2P.price),
-      bnbBid: Number(bnbP2P.bid || bnbP2P.price),
-      ethUSDT: Number(ethSpotData.price),
-      bnbUSDT: Number(bnbSpotData.price)
+      btcBid: btcRes.data.bid,
+      ethBid: ethRes.data.bid,
+      bnbBid: bnbRes.data.bid,
+
+      btcUSDT: parseFloat(btcSpotRes.data.price),
+      ethUSDT: parseFloat(ethSpotRes.data.price),
+      bnbUSDT: parseFloat(bnbSpotRes.data.price)
     };
-
-    console.log(`📊 USDT Ask: ${data.usdtAsk}`);
-    console.log(`📊 ETH Bid: ${data.ethBid} | ETH Spot: ${data.ethUSDT}`);
-    console.log(`📊 BNB Bid: ${data.bnbBid} | BNB Spot: ${data.bnbUSDT}`);
-
-    return data;
-  } catch (e) {
-    console.error("❌ Error grave:", e.message);
+  } catch (err) {
+    console.error("Error obteniendo datos:", err.message);
     return null;
   }
 }
 
-function calcularGanancia(monto, usdtAsk, coinBid, coinUSDT, nombre) {
-  if (!usdtAsk || !coinBid || !coinUSDT || isNaN(usdtAsk) || isNaN(coinBid) || isNaN(coinUSDT)) {
-    console.log(`❌ ${nombre} → Datos inválidos (NaN)`);
-    return 0;
-  }
+function calcularArbitraje(
+  montoInicial,
+  usdtAsk,
+  coinBid,
+  coinUSDT
+) {
+  const ars = montoInicial * usdtAsk * (1 - p2pFee);
 
-  const arsNeto = monto * usdtAsk * (1 - p2pFee);
-  const coinComprado = arsNeto / coinBid;
-  const usdtFinal = coinComprado * coinUSDT * (1 - spotFee);
-  const porcentaje = ((usdtFinal - monto) / monto) * 100;
+  const coin = ars / coinBid;
 
-  console.log(`   ${nombre}: ${porcentaje.toFixed(3)}%`);
-  return porcentaje;
+  const usdtFinal = coin * coinUSDT * (1 - spotFee);
+
+  const ganancia = usdtFinal - montoInicial;
+
+  const porcentaje = (ganancia / montoInicial) * 100;
+
+  return {
+    usdtFinal,
+    ganancia,
+    porcentaje
+  };
 }
 
-async function enviarTelegram(mensaje) {
-  try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: CHAT_ID, text: mensaje, parse_mode: 'HTML' })
-    });
-    console.log("✅ MENSAJE ENVIADO A TELEGRAM");
-  } catch (e) {
-    console.error("❌ Error Telegram:", e.message);
-  }
-}
+async function revisar() {
+  console.log("Revisando oportunidades...");
 
-async function chequear() {
-  const data = await obtenerPrecios();
+  const data = await obtenerDatos();
+
   if (!data) return;
 
-  const monto = 1000;
-  let mensaje = `🚨 <b>OPORTUNIDAD DE ARBITRAJE</b>\n\n`;
-  let hayOportunidad = false;
-
-  // Solo ETH y BNB (los que estás viendo ganancia)
   const monedas = [
-    { nombre: "ETH", bid: data.ethBid, usdt: data.ethUSDT },
-    { nombre: "BNB", bid: data.bnbBid, usdt: data.bnbUSDT }
+    {
+      nombre: "BTC",
+      bid: data.btcBid,
+      usdt: data.btcUSDT
+    },
+    {
+      nombre: "ETH",
+      bid: data.ethBid,
+      usdt: data.ethUSDT
+    },
+    {
+      nombre: "BNB",
+      bid: data.bnbBid,
+      usdt: data.bnbUSDT
+    }
   ];
 
-  for (const coin of monedas) {
-    const porc = calcularGanancia(monto, data.usdtAsk, coin.bid, coin.usdt, coin.nombre);
-    if (porc >= UMBRAL_ALERTA) {
-      mensaje += `🔹 <b>${coin.nombre}</b>: <b>${porc.toFixed(2)}%</b>\n`;
-      hayOportunidad = true;
-    }
-  }
+  for (const moneda of monedas) {
+    const r = calcularArbitraje(
+      MONTO_USDT,
+      data.usdtAsk,
+      moneda.bid,
+      moneda.usdt
+    );
 
-  if (hayOportunidad) {
-    mensaje += `\n💰 Monto: ${monto} USDT\n📊 USDT ARS: ${data.usdtAsk.toFixed(2)}`;
-    await enviarTelegram(mensaje);
-  } else {
-    console.log(`⏳ Sin oportunidades > ${UMBRAL_ALERTA}%`);
+    console.log(
+      `${moneda.nombre}: ${r.porcentaje.toFixed(2)}%`
+    );
+
+    if (r.porcentaje >= GANANCIA_MINIMA) {
+
+      if (!ultimaAlerta[moneda.nombre]) {
+
+        ultimaAlerta[moneda.nombre] = true;
+
+        const mensaje = `
+🚨 <b>ARBITRAJE DETECTADO</b>
+
+🪙 Moneda: <b>${moneda.nombre}</b>
+
+💰 Ganancia:
+<b>${r.porcentaje.toFixed(2)}%</b>
+
+📈 USDT Final:
+${r.usdtFinal.toFixed(2)}
+
+💵 Ganancia:
+${r.ganancia.toFixed(2)} USDT
+`;
+
+        await enviarTelegram(mensaje);
+      }
+
+    } else {
+
+      ultimaAlerta[moneda.nombre] = false;
+
+    }
   }
 }
 
-setInterval(chequear, 15000);
-chequear();
+console.log("Bot iniciado...");
 
-console.log("🤖 Bot iniciado correctamente...");
+revisar();
+
+setInterval(revisar, 15000);
