@@ -50,9 +50,9 @@ async function obtenerDatos() {
       axios.get("https://criptoya.com/api/binancep2p/ETH/ARS/0.22"),
       axios.get("https://criptoya.com/api/binancep2p/BNB/ARS/0.75"),
 
-      axios.get("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"),
-      axios.get("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT"),
-      axios.get("https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT")
+      axios.get("https://criptoya.com/api/binance/BTC/USDT"),
+axios.get("https://criptoya.com/api/binance/ETH/USDT"),
+axios.get("https://criptoya.com/api/binance/BNB/USDT")
     ]);
 
     return {
@@ -62,9 +62,9 @@ async function obtenerDatos() {
       ethBid: ethRes.data.bid,
       bnbBid: bnbRes.data.bid,
 
-      btcUSDT: parseFloat(btcSpotRes.data.price),
-      ethUSDT: parseFloat(ethSpotRes.data.price),
-      bnbUSDT: parseFloat(bnbSpotRes.data.price)
+      bbtcUSDT: btcSpotRes.data.bid,
+ethUSDT: ethSpotRes.data.bid,
+bnbUSDT: bnbSpotRes.data.bid
     };
   } catch (err) {
     console.error("Error obteniendo datos:", err.message);
