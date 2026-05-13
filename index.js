@@ -2,9 +2,9 @@ import fetch from 'node-fetch';
 
 const p2pFee = 0.0014;
 const spotFee = 0.0010;
-const UMBRAL_ALERTA = 0.8;   // Bajado para pruebas
+const UMBRAL_ALERTA = 0.7;   // Bajado para que salte más fácil
 
-const TELEGRAM_TOKEN = '995387228:AAEcAXLBykO7KybrnIkDpNSS-eax1wVOEO4';
+const TELEGRAM_TOKEN = '8995387228:AAEcAXLBykO7KybrnIkDpNSS-eax1wVOEO4';
 const CHAT_ID = '1385846402';
 
 async function obtenerPrecios() {
@@ -34,7 +34,7 @@ async function obtenerPrecios() {
       bnbUSDT: Number((await bnbSpotRes.json()).price)
     };
 
-    console.log(`📊 USDT: ${data.usdtAsk.toFixed(2)} | BTC: ${data.btcBid.toLocaleString('es-AR')} | ETH: ${data.ethBid.toLocaleString('es-AR')}`);
+    console.log(`📊 USDT: ${data.usdtAsk.toFixed(2)} | ETH Bid: ${data.ethBid.toLocaleString('es-AR')}`);
 
     return data;
   } catch (e) {
@@ -44,25 +44,30 @@ async function obtenerPrecios() {
 }
 
 function calcularGanancia(monto, usdtAsk, coinBid, coinUSDT, nombre) {
-  const ars = monto * usdtAsk * (1 - p2pFee);
-  const coin = ars / coinBid;
-  const usdtFinal = coin * coinUSDT * (1 - spotFee);
-  const porcentaje = ((usdtFinal - monto) / monto) * 100;
+  try {
+    const ars = monto * usdtAsk * (1 - p2pFee);
+    const coin = ars / coinBid;
+    const usdtFinal = coin * coinUSDT * (1 - spotFee);
+    const porcentaje = ((usdtFinal - monto) / monto) * 100;
 
-  console.log(`   ${nombre}: ${porcentaje.toFixed(3)}%`);
-  return porcentaje;
+    console.log(`   ${nombre}: ${porcentaje.toFixed(3)}%`);
+    return porcentaje;
+  } catch (e) {
+    console.log(`   ${nombre}: Error en cálculo`);
+    return 0;
+  }
 }
 
 async function enviarTelegram(mensaje) {
   try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: CHAT_ID, text: mensaje, parse_mode: 'HTML' })
     });
-    console.log("✅ Alerta enviada a Telegram");
+    console.log("✅ Alerta enviada correctamente a Telegram");
   } catch (e) {
-    console.error("❌ Error Telegram:", e.message);
+    console.error("❌ Error enviando Telegram:", e.message);
   }
 }
 
@@ -71,13 +76,13 @@ async function chequear() {
   if (!data) return;
 
   const monto = 1000;
-  let mensaje = `🚨 <b>OPORTUNIDAD DE ARBITRAJE P2P</b>\n\n`;
+  let mensaje = `🚨 <b>OPORTUNIDAD DE ARBITRAJE</b>\n\n`;
   let hayOportunidad = false;
 
   const monedas = [
-    { nombre: "BTC", bid: data.btcBid, usdt: data.btcUSDT },
     { nombre: "ETH", bid: data.ethBid, usdt: data.ethUSDT },
-    { nombre: "BNB", bid: data.bnbBid, usdt: data.bnbUSDT }
+    { nombre: "BNB", bid: data.bnbBid, usdt: data.bnbUSDT },
+    { nombre: "BTC", bid: data.btcBid, usdt: data.btcUSDT }
   ];
 
   for (const coin of monedas) {
@@ -89,14 +94,13 @@ async function chequear() {
   }
 
   if (hayOportunidad) {
-    mensaje += `\n💰 Monto ejemplo: ${monto} USDT\n📊 USDT ARS: ${data.usdtAsk.toFixed(2)}`;
+    mensaje += `\n💰 Monto: ${monto} USDT\n📊 USDT ARS: ${data.usdtAsk.toFixed(2)}`;
     await enviarTelegram(mensaje);
   } else {
-    console.log("⏳ No hay oportunidades por encima de " + UMBRAL_ALERTA + "%");
+    console.log(`⏳ No hay oportunidades > ${UMBRAL_ALERTA}%`);
   }
 }
 
-// Ejecutar
 setInterval(chequear, 20000);
 chequear();
 
