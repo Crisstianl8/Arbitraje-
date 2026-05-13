@@ -1,8 +1,14 @@
 {
-  "name": "arbitraje-p2p-alert",
+  "name": "arbitraje-telegram-bot",
   "version": "1.0.0",
+  "description": "Bot de arbitraje P2P Binance",
+  "main": "index.js",
   "type": "module",
   "scripts": {
     "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.8.1",
+    "dotenv": "^16.4.7"
   }
 }
