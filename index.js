@@ -4,8 +4,8 @@ const p2pFee = 0.0014;
 const spotFee = 0.0010;
 const UMBRAL_ALERTA = 0.8;
 
-const TELEGRAM_TOKEN = 'TU_TOKEN_AQUI';
-const CHAT_ID = 'TU_CHAT_ID_AQUI';
+const TELEGRAM_TOKEN = '8995387228:AAEcAXLBykO7KybrnIkDpNSS-eax1wVOEO4';
+const CHAT_ID = '1385846402';
 
 async function obtenerPrecios() {
   try {
